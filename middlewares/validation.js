@@ -160,7 +160,8 @@ const validateTrainingUpdate = async (req, res, next) => {
         venue_latitude,
         venue_longitude,
         ingestion_source,
-        venue_address
+        venue_address,
+        description
     } = updates;
     const errors = [];
 

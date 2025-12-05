@@ -109,4 +109,4 @@ const autoGenerateSessionCode = async (req, res, next) => {
   }
 };
 
-module.exports = { autoGenerateSessionCode };
+module.exports = { autoGenerateSessionCode, generateSessionCode };
