@@ -1,36 +1,25 @@
 const express = require('express');
 const router = express.Router();
-const { requireAuth } = require('../middlewares/auth');
+const { requireAuth, requireAnyRole } = require('../middlewares/auth');
+const wrapAsync = require('../util/wrapAsync');
+const userController = require('../controllers/users');
 
-// Define your user-related routes here, for example:
-router.get('/', (req, res) => {
-  res.send('User routes are working!');
-});
 
-// GET /api/users/profile - Current user ka profile
-router.get('/profile', requireAuth, async (req, res) => {
-  try {
-    const user = req.user;
-    
-    res.json({
-      success: true,
-      user: {
-        id: user.id,
-        name: `${user.firstName} ${user.lastName}`,
-        email: user.emailAddresses[0]?.emailAddress,
-        role: user.publicMetadata?.role,
-        state: user.publicMetadata?.state,
-        district: user.publicMetadata?.district,
-        profile_complete: true
-      }
-    });
-  } catch (error) {
-    console.error('Profile fetch error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Profile fetch nahi ho paya'
-    });
-  }
-});
+// GET and UPDATE User Profile
+router.route('/profile')
+  .get(requireAuth, wrapAsync(userController.getUserProfile))
+  .put(requireAuth, wrapAsync(userController.updateUserProfile));
+
+//Admin 
+router.route('/')
+     .get(requireAuth,
+      requireAnyRole(['ndma_admin', 'sdma_admin']),
+      wrapAsync(userController.getAllUsers));
+
+
+router.route('/:id')
+       .get(requireAuth, wrapAsync(userController.getUserById))
+       .put(requireAuth, wrapAsync(userController.updateUserById))
+       .delete(requireAuth, wrapAsync(userController.deleteUserById))
 
 module.exports = router;

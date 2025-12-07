@@ -2,9 +2,7 @@ const { TrainingSession } = require("../models");
 const { District } = require("../models");
 const { generateSessionCode } = require('../middlewares/sessionCode');
 
-module.exports.getTrainingSessions =
-    async (req, res) => {
-        try {
+module.exports.getTrainingSessions = async (req, res) => {
             console.log('User accessing trainings:', {
                 role: req.user.publicMetadata?.role,
                 state: req.user.publicMetadata?.state,
@@ -23,18 +21,10 @@ module.exports.getTrainingSessions =
                 count: trainings.length,
                 data: trainings
             });
-        } catch (error) {
-            console.error('Error fetching trainings:', error);
-            res.status(500).json({
-                success: false,
-                error: 'Server error - Not able to fetch trainings'
-            });
-        }
-    };
+        };
 
 
-module.exports.createTrainingSession = async (req, res, next) => {
-    try {
+module.exports.createTrainingSession = async (req, res) => {
         const trainer_id = req.user.id;
 
         if (!trainer_id) {
@@ -160,15 +150,10 @@ module.exports.createTrainingSession = async (req, res, next) => {
                 scheduled_at: trainingSession.scheduled_at
             }
         });
-
-    } catch (error) {
-        next(error);
-    }
 };
 
 
-module.exports.getTrainingSessionById = async (req, res, next) => {
-    try {
+module.exports.getTrainingSessionById = async (req, res) => {
         const { id } = req.params;
 
         console.log('Fetching training ID:', id);
@@ -211,17 +196,10 @@ module.exports.getTrainingSessionById = async (req, res, next) => {
         };
 
         res.json(response);
-
-    } catch (error) {
-        console.error('Get training error:', error.message);
-        next(error);
-    }
-};
+    };
 
 
-module.exports.updateTraining = async (req, res, next) => {
-    try {
-
+module.exports.updateTraining = async (req, res) => {
         const { id } = req.params;
         const updates = req.body;
        
@@ -285,16 +263,10 @@ module.exports.updateTraining = async (req, res, next) => {
             message: 'Training session updated successfully',
             data: updatedTraining
         });
-
-    } catch (error) {
-        console.error('Update training error:', error.message);
-        next(error);
-    }
-};
+    };
 
 
-module.exports.deleteTraining = async (req, res, next) => {
-    try {
+module.exports.deleteTraining = async (req, res) => {
         const { id } = req.params;
         const training = req.training; // From middleware
         const userRole = req.user.publicMetadata?.role;
@@ -331,8 +303,4 @@ module.exports.deleteTraining = async (req, res, next) => {
             data: { id }
         });
 
-    } catch (error) {
-        console.error('Delete training error:', error.message);
-        next(error);
-    }
-};
+    };

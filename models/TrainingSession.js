@@ -23,9 +23,9 @@ const MediaEvidenceSchema = new Schema({
 const VerificationLogSchema = new Schema({
   check_type: { type: String, enum: ['geofence', 'ai_headcount', 'time_validity', 'manual_check'], required: true },
   status: { type: String, enum: ['pass', 'fail', 'warning'], required: true },
-  notes: { type: String },
-  actor_id: { type: Schema.Types.ObjectId, ref: 'User' }, // who performed manual check (optional)
-  created_at: { type: Date, default: Date.now }
+  // notes: { type: String },
+  // actor_id: { type: Schema.Types.ObjectId, ref: 'User' }, // who performed manual check (optional)
+  // created_at: { type: Date, default: Date.now }
 }, { _id: false });
 
 /* --- TrainingSession main schema --- */
