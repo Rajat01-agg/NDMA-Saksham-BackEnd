@@ -10,7 +10,7 @@ router.route('/register')
 router.route('/login')
     .post(wrapAsync(authController.login));
 
-router.route('/current-user')
+router.route('/currentUser')
     .get(requireAuth, wrapAsync(authController.getCurrentUser));
 
 router.route('/logout')

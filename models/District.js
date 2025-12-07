@@ -40,7 +40,7 @@ const DistrictSchema = new mongoose.Schema({
 
   risk_level: {
     type: String,
-    enum: ['critical', 'high', 'moderatre', 'low'],
+    enum: ['critical', 'high', 'moderate', 'low'],
     default: 'moderate',
     index: true
   },

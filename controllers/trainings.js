@@ -4,8 +4,8 @@ const { generateSessionCode } = require('../middlewares/sessionCode');
 
 module.exports.getTrainingSessions = async (req, res) => {
             console.log('User accessing trainings:', {
-                role: req.user.publicMetadata?.role,
-                state: req.user.publicMetadata?.state,
+                role: req.user.role,
+                state: req.user.state,
                 geoFilter: req.geoFilter
             });
 
@@ -25,14 +25,14 @@ module.exports.getTrainingSessions = async (req, res) => {
 
 
 module.exports.createTrainingSession = async (req, res) => {
+        // Use MongoDB user ID from JWT token
         const trainer_id = req.user.id;
 
         if (!trainer_id) {
-            const error = new Error('Trainer ID not found in user object');
+            const error = new Error('User ID not found. Please ensure user is properly authenticated.');
             error.status = 400;
             throw error;
         }
-
 
         // Extract data from request body
         const {
@@ -48,8 +48,8 @@ module.exports.createTrainingSession = async (req, res) => {
 
         const trainer_name = `${req.user.firstName} ${req.user.lastName}`;
 
-        // Get district NAME from user profile
-        const districtName = req.user.publicMetadata?.district; // e.g., "pune"
+        // Get district NAME from JWT user data
+        const districtName = req.user.district; // Direct access from JWT token
 
         if (!districtName) {
             const error = new Error('Trainer is not assigned to any district');
@@ -223,12 +223,12 @@ module.exports.updateTraining = async (req, res) => {
             updates.session_code = await generateSessionCode(district, updates.theme);
             console.log('New session code:', updates.session_code);
         }
-
+        
         // Restricted fields (cannot be updated)
         const restrictedFields = ['trainer_id', 'district_id', 'scheduled_at', '_id', 'Session_id'];
         restrictedFields.forEach(field => delete updates[field]);
 
-        const userRole = req.user.publicMetadata?.role;
+        const userRole = req.user.role;
 
         // If user is trainer, additional restrictions
         if (userRole === 'trainer') {
@@ -269,7 +269,7 @@ module.exports.updateTraining = async (req, res) => {
 module.exports.deleteTraining = async (req, res) => {
         const { id } = req.params;
         const training = req.training; // From middleware
-        const userRole = req.user.publicMetadata?.role;
+        const userRole = req.user.role;
 
         console.log('Deleting training (owner verified):', {
             id,

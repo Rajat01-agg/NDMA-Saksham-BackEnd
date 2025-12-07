@@ -7,6 +7,7 @@ const { District, User, TrainingSession } = require("./models");
 const trainingRoutes = require('./routes/trainings');
 const userRoutes = require('./routes/users');
 const authRoutes = require('./routes/auth');
+const testRoutes = require('./routes/testAuth');
 const { errorHandler, notFoundHandler } = require('./util/ExpressError');
 
 // MongoDB connection
@@ -38,6 +39,7 @@ app.get("/", (req, res) => {
 app.use('/api/trainings', trainingRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/test', testRoutes);
 
 app.use(notFoundHandler);
 

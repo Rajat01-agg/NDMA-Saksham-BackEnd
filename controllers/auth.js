@@ -1,55 +1,72 @@
 const User = require('../models/User');
 const District = require('../models/District');
+const { clerk } = require('../middlewares/auth');
+const { generateToken } = require('../util/jwt');
 
 module.exports.register = async (req, res) => {
-  const {
-    firstName, lastName, email, mobile_number, password, role = 'volunteer', state, district } = req.body;
+    const {
+      firstName,
+      lastName,
+      email,
+      mobile_number,
+      password,
+      role = 'volunteer',
+      state,
+      district
+    } = req.body;
 
-  // 2. Validate required fields
-  if (!firstName || !email || !mobile_number || !password) {
-    return res.status(400).json({
-      success: false,
-      error: 'All fields required'
+    // 1. Validate required fields
+    if (!firstName || !email || !mobile_number || !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: firstName, email, mobile_number, password'
+      });
+    }
+
+    // 2. Check if user already exists
+    const existingUser = await User.findOne({ 
+      $or: [{ email }, { mobile_number }] 
     });
-  }
 
-  // 4. Create new user
-  const newUser = await User.create({
-    firstName: firstName.trim(),
-    lastName: lastName ? lastName.trim() : '',
-    email: email,
-    mobile_number: mobile_number.trim(),
-    passwordHash: password, // Plain text for now
-    role: role,
-    state: state,
-    district: district,
-    isActive: true,
-    onboarding_source: 'pwa'
-  });
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        error: 'User already exists with this email or mobile number'
+      });
+    }
 
-  console.log('✅ User created with ID:', newUser._id);
+    // 3. Create user (password will be hashed if you have pre-save hook)
+    const user = await User.create({
+      firstName: firstName.trim(),
+      lastName: lastName?.trim() || '',
+      email: email.toLowerCase().trim(),
+      mobile_number: mobile_number.trim(),
+      passwordHash: password, // Plain text - add hashing in User model pre-save
+      role,
+      state: state?.toLowerCase(),
+      district: district?.toLowerCase(),
+      isActive: true,
+      onboarding_source: 'pwa'
+    });
 
-  let token = '';
+    // 4. Generate JWT token
+    const token = generateToken(user);
 
-  if (newUser.role === 'sdma_admin') {
-    token = 'user_sdma_maharashtra'; //same for all sdma's for simplicity 
-  }
-  else if (newUser.role === 'trainer') {
-    token = 'user_trainer_pune'; //same for all trainers for making it simple 
-  }
-  else if (newUser.role === 'ndma_admin') {
-    token = 'user_ndma_admin';
-  }
-  else {
-    token = 'user_volunteer_test';
-  }
-
-  return {
-    success: true,
-    message: 'User registered successfully',
-    user: newUser,
-    token: token
-  };
+    // 5. Response
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      user: {
+        id: user._id,
+        name: `${user.firstName} ${user.lastName}`.trim(),
+        email: user.email,
+        mobile_number: user.mobile_number,
+        role: user.role,
+        state: user.state,
+        district: user.district
+      },
+      token
+    });
 };
 
 
@@ -92,18 +109,15 @@ module.exports.login = async (req, res) => {
     });
   }
 
-  // Generate token based on role
-  let token = '';
-  
-  if (user.role === 'sdma_admin') {
-    token = 'user_sdma_maharashtra';
-  } else if (user.role === 'trainer') {
-    token = 'user_trainer_pune';
-  } else if (user.role === 'ndma_admin') {
-    token = 'user_ndma_admin';
-  } else {
-    token = 'user_volunteer_test';
-  }
+  // Check if user has clerkId
+  // if (!user.clerkId) {
+  //   return res.status(400).json({
+  //     success: false,
+  //     error: 'User not registered with Clerk. Please register first.'
+  //   });
+  // }
+
+  const token = generateToken(user);
   
   // Success response
   res.json({
@@ -123,65 +137,39 @@ module.exports.login = async (req, res) => {
 
 
 module.exports.getCurrentUser = async(req, res) => {
-  const clerkUser = req.user;
+  const user = req.user;
     
-  // Build query dynamically - only include conditions that are provided
-  const queryConditions = [];
-  const userEmail = clerkUser.emailAddresses?.[0]?.emailAddress;
-  const userMobile = clerkUser.publicMetadata?.mobileNumber;
-
-  if (userEmail) {
-    queryConditions.push({ email: userEmail.toLowerCase() });
-  }
-  if (userMobile) {
-    queryConditions.push({ mobile_number: userMobile.trim() });
-  }
-
-  if (queryConditions.length === 0) {
-    return res.status(400).json({
-      success: false,
-      error: 'No email or mobile number found in user profile'
-    });
-  }
-
-  const query = queryConditions.length === 1 ? queryConditions[0] : { $or: queryConditions };
-  const mongoUser = await User.findOne(query).lean();
-  
-  // If user doesn't exist in MongoDB (edge case)
-  if (!mongoUser) {
-    return res.status(404).json({
-      success: false,
-      error: 'User profile not found'
-    });
-  }
-  
-  // Response
+  // Use the data already in req.user (from requireAuth)
   res.json({
     success: true,
     user: {
-      id: mongoUser._id,
-      clerkId: clerkUser.id,
-      name: `${mongoUser.firstName} ${mongoUser.lastName}`.trim(),
-      email: mongoUser.email,
-      mobile_number: mongoUser.mobile_number,
-      role: mongoUser.role,
-      state: mongoUser.state,
-      district: mongoUser.district,
-      skills: mongoUser.skills || [],
-      isActive: mongoUser.isActive,
-      createdAt: mongoUser.createdAt,
-      updatedAt: mongoUser.updatedAt
+      id: user.id,
+      name: `${user.firstName} ${user.lastName}`.trim(),
+      email: user.email,
+      mobile_number: user.mobile_number,
+      role: user.role,
+      state: user.state,
+      district: user.district,
+      skills: user.skills || [], // Add if you store skills in user
+      isActive: user.isActive !== false,
+      createdAt: user.createdAt || new Date().toISOString(),
+      updatedAt: user.updatedAt || new Date().toISOString()
     }
   });
 };
 
 module.exports.logout = async(req, res) => {
   console.log('🔓 Logout requested');
-    
-    // Since we're using mock tokens, logout is simple
-    
-    res.json({
-      success: true,
-      message: 'Logged out successfully'
-    });
-}
+  
+  // Since we're using JWT tokens (not Clerk session tokens),
+  // logout is primarily handled client-side by removing the token.
+  // In a production system, you could implement a token blacklist here.
+  
+  // For now, we'll just return success.
+  // The client should remove the token from localStorage/sessionStorage.
+  
+  res.json({
+    success: true,
+    message: 'Logged out successfully. Please remove token from client storage.'
+  });
+};

@@ -1,5 +1,6 @@
 const { Clerk } = require('@clerk/clerk-sdk-node');
-const { District } = require('../models'); 
+const jwt = require('jsonwebtoken');
+const { District, User } = require('../models'); 
 
 const clerk = new Clerk({ 
   secretKey: process.env.CLERK_SECRET_KEY 
@@ -8,68 +9,81 @@ const clerk = new Clerk({
 // ========================
 // 1. MAIN AUTHENTICATION MIDDLEWARE
 // ========================
-
 const requireAuth = async (req, res, next) => {
+  // 1. Get token from header
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ 
+      success: false,
+      error: 'No token provided. Format: Bearer <token>' 
+    });
+  }
+  
+  const token = authHeader.split(' ')[1];
+  
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    // 2. Verify JWT token
+    const decoded = jwt.verify(
+      token, 
+      process.env.CLERK_SECRET_KEY || 'your-secret-key'
+    );
     
-    if (!token) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
-
-    // TEMPORARY: Handle mock tokens for testing
-    if (token.startsWith('user_')) {
-      const mockUsers = {
-        'user_ndma_admin': {
-          _id: '507f1f77bcf86cd799439013', // ✅ ObjectId
-          id: '507f1f77bcf86cd799439013',  // ✅ Same
-          emailAddresses: [{ emailAddress: 'ndma.admin@test.com' }],
-          firstName: 'NDMA',
-          lastName: 'Admin',
-          publicMetadata: { role: 'ndma_admin' }
-        },
-        'user_sdma_maharashtra': {
-          _id: '507f1f77bcf86cd799439014',
-          id: '507f1f77bcf86cd799439014',
-          emailAddresses: [{ emailAddress: 'maharashtra.admin@test.com' }],
-          firstName: 'Maharashtra', 
-          lastName: 'Admin',
-          publicMetadata: { role: 'sdma_admin', state: 'maharashtra' }
-        },
-        'user_trainer_pune': {
-          _id: '507f1f77bcf86cd799439012', // ✅ ObjectId for trainer
-          id: '507f1f77bcf86cd799439012',  // ✅ Same ObjectId
-          emailAddresses: [{ emailAddress: 'trainer.pune@test.com' }],
-          firstName: 'Pune',
-          lastName: 'Trainer',
-          publicMetadata: { role: 'trainer', district: 'pune' } // ✅ District: 'pune'
-        },
-        'user_volunteer_test': {
-          _id: '507f1f77bcf86cd799439015',
-          id: '507f1f77bcf86cd799439015',
-          emailAddresses: [{ emailAddress: 'volunteer.test@test.com' }],
-          firstName: 'Test',
-          lastName: 'Volunteer',
-          publicMetadata: { role: 'volunteer' }
-        }
-      };
-      
-      req.user = mockUsers[token];
-      console.log('Mock user set:', { 
-        id: req.user.id, 
-        district: req.user.publicMetadata?.district 
+    console.log('Decoded token:', decoded); // Debug log
+    
+    // 3. Find user in MongoDB using userId from token (NOT clerkId)
+    const user = await User.findOne({ 
+      _id: decoded.userId  // ✅ CORRECT: Use userId, not clerkId
+    }).lean();
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'User not found in database' 
       });
-      return next();
     }
-
-    // Original Clerk code (keep this for production)
-    const session = await clerk.sessions.verifySession(token);
-    const user = await clerk.users.getUser(session.userId);
-    req.user = user;
+    
+    // 4. Attach user data to request
+    req.user = {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+      state: user.state,
+      district: user.district,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      mobile_number: user.mobile_number,
+      publicMetadata: {
+        role: user.role,
+        state: user.state,
+        district: user.district
+      }
+    };
+    
+    console.log('✅ Authenticated user:', user.email);
     next();
+    
   } catch (error) {
-    console.error('Auth error:', error);
-    return res.status(401).json({ error: 'Invalid token' });
+    console.error('❌ Auth error:', error.message);
+    
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ 
+        success: false,
+        error: 'Invalid token' 
+      });
+    }
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ 
+        success: false,
+        error: 'Token expired' 
+      });
+    }
+    
+    return res.status(401).json({ 
+      success: false,
+      error: 'Authentication failed: ' + error.message 
+    });
   }
 };
 
@@ -192,14 +206,9 @@ const applyGeographicalFilter = async (req, res, next) => {
       req.geoFilter = { district_id: districtDoc._id };
     }
   }
-  
-  // NDMA admins get no filters (req.geoFilter remains {}) - handled by initial req.geoFilter = {};
 
   next();
 };
-
-
-
 
 module.exports = {
   requireAuth,

@@ -37,5 +37,5 @@ router.route('/:id')
         isOwnerOrAdmin,
          wrapAsync(trainingController.deleteTraining));
 
-
+         
 module.exports = router;

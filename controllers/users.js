@@ -2,45 +2,34 @@ const User = require('../models/User');
 const District = require('../models/District');
 
 module.exports.getUserProfile = async (req, res) => {
-    const clerkUser = req.user;
+    // Since we're using JWT, req.user already contains the authenticated user data from MongoDB
+    const jwtUser = req.user;
 
-    // Build query dynamically - only include conditions that are provided
-    const queryConditions = [];
-    const userEmail = clerkUser.emailAddresses?.[0]?.emailAddress;
-    const userMobile = clerkUser.publicMetadata?.mobileNumber;
+    // Get the full user document to access all fields
+    const mongoUser = await User.findById(jwtUser.id);
 
-    if (userEmail) {
-        queryConditions.push({ email: userEmail.toLowerCase() });
-    }
-    if (userMobile) {
-        queryConditions.push({ mobile_number: userMobile.trim() });
-    }
-
-    if (queryConditions.length === 0) {
-        return res.status(400).json({
+    if (!mongoUser) {
+        return res.status(404).json({
             success: false,
-            error: 'No email or mobile number found in user profile'
+            error: 'User not found in database'
         });
     }
 
-    const query = queryConditions.length === 1 ? queryConditions[0] : { $or: queryConditions };
-    const mongoUser = await User.findOne(query);
-
-    // If MongoDB user found, get district details
+    // Get district details if available
     let homeDistrict = null;
-    if (mongoUser?.home_district_id) {
+    if (mongoUser.home_district_id) {
         homeDistrict = await District.findById(mongoUser.home_district_id);
     }
 
     // If no home_district_id but has district name, find it
-    if (!homeDistrict && mongoUser?.district && mongoUser?.state) {
+    if (!homeDistrict && mongoUser.district && mongoUser.state) {
         homeDistrict = await District.findOne({
             name: mongoUser.district.toLowerCase(),
             state: mongoUser.state.toLowerCase()
         });
 
         // Update user with district_id if found
-        if (homeDistrict && mongoUser) {
+        if (homeDistrict) {
             await User.findByIdAndUpdate(mongoUser._id, {
                 home_district_id: homeDistrict._id
             });
@@ -51,93 +40,80 @@ module.exports.getUserProfile = async (req, res) => {
     const response = {
         success: true,
         user: {
-            // From Clerk
-            id: clerkUser.id,
-            name: `${clerkUser.firstName} ${clerkUser.lastName}`,
-            email: clerkUser.emailAddresses[0]?.emailAddress,
-            role: clerkUser.publicMetadata?.role,
-            state: clerkUser.publicMetadata?.state,
-            district: clerkUser.publicMetadata?.district,
+            // User ID (MongoDB ObjectId)
+            id: mongoUser._id,
+            name: `${mongoUser.firstName} ${mongoUser.lastName}`.trim(),
+            email: mongoUser.email,
+            mobile_number: mongoUser.mobile_number,
+            role: mongoUser.role,
+            state: mongoUser.state,
+            district: mongoUser.district,
             profile_complete: true,
 
-            // From MongoDB (if exists)
-            ...(mongoUser && {
-                mongoUserId: mongoUser._id,
-                mobile_number: mongoUser.mobile_number,
-                skills: mongoUser.skills,
-                onboarding_source: mongoUser.onboarding_source,
-                isActive: mongoUser.isActive,
-                home_district: homeDistrict ? {
-                    id: homeDistrict._id,
-                    name: homeDistrict.name,
-                    state: homeDistrict.state,
-                    code: homeDistrict.census_code
-                } : null
-            })
+            // Additional MongoDB fields
+            skills: mongoUser.skills || [],
+            onboarding_source: mongoUser.onboarding_source,
+            isActive: mongoUser.isActive,
+            clerkId: mongoUser.clerkId, // If exists
+
+            // District information
+            home_district: homeDistrict ? {
+                id: homeDistrict._id,
+                name: homeDistrict.name,
+                state: homeDistrict.state,
+                code: homeDistrict.census_code,
+                risk_level: homeDistrict.risk_level
+            } : null,
+
+            // Timestamps
+            createdAt: mongoUser.createdAt,
+            updatedAt: mongoUser.updatedAt
         }
     };
+
     res.json(response);
 };
 
 
 module.exports.updateUserProfile = async (req, res) => {
-        const clerkUser = req.user;
-        const updates = req.body;
+    // Since we're using JWT, req.user contains the authenticated user data
+    const jwtUser = req.user;
+    const updates = req.body;
 
-        // Build query
-        const queryConditions = [];
-        const userEmail = clerkUser.emailAddresses?.[0]?.emailAddress;
-        const userMobile = clerkUser.publicMetadata?.mobileNumber;
+    // Find the user by their MongoDB ID (which is already in req.user.id)
+    const mongoUser = await User.findById(jwtUser.id);
 
-        if (userEmail) {
-            queryConditions.push({ email: userEmail.toLowerCase() });
-        }
-        if (userMobile) {
-            queryConditions.push({ mobile_number: userMobile.trim() });
-        }
-
-        if (queryConditions.length === 0) {
-            return res.status(400).json({
-                success: false,
-                error: 'No email or mobile number found in user profile'
-            });
-        }
-
-        const query = queryConditions.length === 1 ? queryConditions[0] : { $or: queryConditions };
-        
-        // Find user WITH passwordHash
-        const mongoUser = await User.findOne(query).select('+passwordHash');
-
-        if (!mongoUser) {
-            return res.status(404).json({
-                success: false,
-                error: 'User profile not found'
-            });
-        }
-
-        // Remove restricted fields
-        const restrictedFields = ['_id', 'passwordHash', 'createdAt', 'updatedAt', '__v', 'role', 'isActive'];
-        restrictedFields.forEach(field => delete updates[field]);
-
-        // Check each update
-        Object.keys(updates).forEach(key => {
-            if (updates[key] !== undefined) {
-                console.log(`Setting ${key}: ${mongoUser[key]} → ${updates[key]}`);
-                mongoUser[key] = updates[key];
-            }
+    if (!mongoUser) {
+        return res.status(404).json({
+            success: false,
+            error: 'User profile not found'
         });
+    }
 
-        const updatedUser = await mongoUser.save();
+    // Remove restricted fields that users shouldn't be able to update directly
+    const restrictedFields = ['_id', 'passwordHash', 'createdAt', 'updatedAt', '__v', 'role', 'isActive'];
+    restrictedFields.forEach(field => delete updates[field]);
 
-        // Remove passwordHash from response
-        const userResponse = updatedUser.toObject();
-        delete userResponse.passwordHash;
+    // Validate and apply updates
+    Object.keys(updates).forEach(key => {
+        if (updates[key] !== undefined) {
+            console.log(`Setting ${key}: ${mongoUser[key]} → ${updates[key]}`);
+            mongoUser[key] = updates[key];
+        }
+    });
 
-        res.json({
-            success: true,
-            message: 'Profile updated successfully',
-            user: userResponse
-        });
+    // Save the updated user
+    const updatedUser = await mongoUser.save();
+
+    // Remove sensitive fields from response
+    const userResponse = updatedUser.toObject();
+    delete userResponse.passwordHash;
+
+    res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        user: userResponse
+    });
 };
 
 

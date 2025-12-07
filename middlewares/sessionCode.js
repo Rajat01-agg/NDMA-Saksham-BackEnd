@@ -59,7 +59,7 @@ const autoGenerateSessionCode = async (req, res, next) => {
   try {
     const { theme } = req.body; 
     
-    const districtName = req.user?.publicMetadata?.district;
+    const districtName = req.user?.district;
     console.log('District Name from user:', districtName);
 
     // Validation

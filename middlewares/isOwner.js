@@ -4,7 +4,7 @@ const District = require("../models/District.js");
 const isOwnerOrAdmin = async (req, res, next) => {
     try {
       const { id } = req.params;
-      const userRole = req.user.publicMetadata?.role;
+      const userRole = req.user.role;
       const userId = req.user.id;
       
       console.log('isOwner check:', { id, userRole, userId });
@@ -28,7 +28,7 @@ const isOwnerOrAdmin = async (req, res, next) => {
       // SDMA - Access to trainings in their state
       if (userRole === 'sdma_admin') {
         const district = await District.findById(training.district_id);
-        const userState = req.user.publicMetadata?.state;
+        const userState = req.user.state;
         
         if (district && userState && 
             district.state.toLowerCase() === userState.toLowerCase()) {
@@ -44,7 +44,17 @@ const isOwnerOrAdmin = async (req, res, next) => {
       
       // Trainer - Must be the owner
       if (userRole === 'trainer') {
-        if (training.trainer_id.toString() === userId.toString()) {
+        // Get MongoDB user ID from req.user (set by requireAuth middleware)
+        const mongoUserId = req.user.id;
+
+        if (!mongoUserId) {
+          const error = new Error('User ID not found. Please ensure user is properly authenticated.');
+          error.status = 400;
+          throw error;
+        }
+        
+        // Compare MongoDB ObjectIds (both are MongoDB ObjectIds now)
+        if (training.trainer_id.toString() === mongoUserId.toString()) {
           console.log('Access: Trainer - IS OWNER');
           req.training = training;
           return next();

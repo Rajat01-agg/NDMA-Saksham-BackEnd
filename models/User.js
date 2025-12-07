@@ -32,6 +32,12 @@ const UserSchema = new Schema(
       trim: true
     },
 
+    clerkId: {
+      type: String,
+      unique: true,
+      sparse: true // Allows multiple null values
+    },
+
     // 3. ROLE & PERMISSIONS
     role: {
       type: String,
