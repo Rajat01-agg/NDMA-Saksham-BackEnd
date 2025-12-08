@@ -3,7 +3,7 @@ const router = express.Router();
 const { requireAuth, applyGeographicalFilter, requireAnyRole } = require("../middlewares/auth");
 const { autoGenerateSessionCode } = require('../middlewares/sessionCode');
 const { validateTrainingCreation, validateTrainingUpdate } = require('../middlewares/validation');
-const isOwnerOrAdmin = require('../middlewares/isOwner');
+const {isOwnerOrAdmin} = require('../middlewares/isOwner');
 const wrapAsync = require("../util/wrapAsync.js");
 const trainingController = require("../controllers/trainings.js");
 

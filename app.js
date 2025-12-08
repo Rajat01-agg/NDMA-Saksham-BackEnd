@@ -7,7 +7,7 @@ const { District, User, TrainingSession } = require("./models");
 const trainingRoutes = require('./routes/trainings');
 const userRoutes = require('./routes/users');
 const authRoutes = require('./routes/auth');
-const testRoutes = require('./routes/testAuth');
+const reportRoutes = require('./routes/report');
 const { errorHandler, notFoundHandler } = require('./util/ExpressError');
 
 // MongoDB connection
@@ -28,10 +28,6 @@ connectDB();
 // Body parser
 app.use(express.json());
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
-
 app.get("/", (req, res) => {
   res.send("Hi, Saksham Backend is running");
 });
@@ -39,7 +35,11 @@ app.get("/", (req, res) => {
 app.use('/api/trainings', trainingRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/test', testRoutes);
+app.use('/api/reports', reportRoutes);
+
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
 
 app.use(notFoundHandler);
 
