@@ -1,6 +1,55 @@
 // models/District.js
 const mongoose = require('mongoose');
 
+const HAZARD_TYPES = [
+  // 🌊 Hydro-Meteorological
+  'flood',
+  'flash_flood',
+  'urban_flood',
+  'drought',
+  'cyclone',
+  'storm_surge',
+  'heatwave',
+  'cold_wave',
+  'hailstorm',
+  'cloudburst',
+
+  // 🌍 Geological
+  'earthquake',
+  'tsunami',
+  'landslide',
+  'avalanche',
+  'volcanic_eruption',
+
+  // 🔥 Fire & Critical Infrastructure
+  'forest_fire',
+  'urban_fire',
+  'industrial_fire',
+
+  // ☣️ Chemical, Biological, Radiological & Nuclear (CBRN)
+  'chemical_hazard',
+  'biological_hazard',
+  'radiological_hazard',
+  'nuclear_hazard',
+  'gas_leak',
+
+  // 🚧 Industrial & Technological
+  'industrial_accident',
+  'mine_collapse',
+  'dam_failure',
+  'oil_spill',
+
+  // 🧬 Public Health & Epidemic
+  'epidemic',
+  'pandemic',
+  'water_borne_disease',
+  'vector_borne_disease',
+
+  // ✅ Fallback
+  'others'
+];
+
+
 const DistrictSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -45,21 +94,22 @@ const DistrictSchema = new mongoose.Schema({
     index: true
   },
 
-  // risk_profile: {
-  //   flood_prone: { 
-  //     type: Boolean, 
-  //     default: false 
-  //   },
-  //   seismic_zone: { 
-  //     type: Number, 
-  //     default: 2 
-  //   }, // Zones typically range 2-5
-  //   cyclone_history: { 
-  //     type: Boolean, 
-  //     default: false 
-  //   }
-  // },
-
+  risk_profile:[
+    {
+      hazard: {
+        type: String,
+        enum: HAZARD_TYPES,
+        required: true,
+        index: true
+      },
+      risk_level: {
+        type: String,
+        enum: ['critical', 'high', 'moderate', 'low'],
+        default: 'moderate'
+      }
+    }
+  ],
+  
   stats: {
     last_training_date: {
       type: Date,

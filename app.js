@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require("express");
 const mongoose = require("mongoose");
+const cors = require('cors');
 const app = express();
 const port = 3001;
 const { District, User, TrainingSession } = require("./models");
@@ -27,6 +28,14 @@ connectDB();
 
 // Body parser
 app.use(express.json());
+
+// CORS middleware - allow frontend on 5173/5174 to call backend
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:5174'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 app.get("/", (req, res) => {
   res.send("Hi, Saksham Backend is running");
